@@ -171,6 +171,64 @@ def get_back_menu():
     ])
     return keyboard
 
+# Функция для отправки туториалов пользователю
+async def send_tutorials_to_user(user_id, app_name):
+    try:
+        # Отправляем сообщение с инструкцией
+        await bot.send_message(
+            chat_id=user_id,
+            text=f"📚 Инструкция по установке приложения «{app_name}»:\n\n"
+                 f"1️⃣ Выйдите из текущей учетной записи Apple ID, если вы в ней\n"
+                 f"2️⃣ Скопируйте выданные данные (логин и пароль)\n"
+                 f"3️⃣ Войдите в аккаунт с этими данными\n"
+                 f"4️⃣ Откройте App Store и найдите приложение «{app_name}»\n"
+                 f"5️⃣ Нажмите «Установить» - приложение станет доступно!\n\n"
+                 f"📹 Смотрите видео-туториал ниже:"
+        )
+        
+        # Получаем посты из канала
+        # Используем метод get_chat для получения информации о канале
+        # И пересылаем последние сообщения
+        try:
+            # Получаем последние сообщения из канала через forward
+            # Пересылаем сообщения из канала (последние 3)
+            async for message in bot.get_chat_history(CHANNEL_ID, limit=3):
+                if message.photo:
+                    await bot.send_photo(
+                        chat_id=user_id,
+                        photo=message.photo[-1].file_id,
+                        caption=message.caption or "📸 Туториал по установке"
+                    )
+                elif message.video:
+                    await bot.send_video(
+                        chat_id=user_id,
+                        video=message.video.file_id,
+                        caption=message.caption or "🎥 Видео-туториал по установке"
+                    )
+                elif message.text:
+                    await bot.send_message(
+                        chat_id=user_id,
+                        text=message.text
+                    )
+        except Exception as e:
+            # Если не удалось получить из канала, отправляем заглушку
+            await bot.send_message(
+                chat_id=user_id,
+                text="📹 Видео-туториал временно недоступен. Следуйте текстовой инструкции выше."
+            )
+        
+        # Отправляем финальное сообщение
+        await bot.send_message(
+            chat_id=user_id,
+            text=f"✅ После установки приложения «{app_name}» вы можете выйти из аккаунта.\n\n"
+                 f"❓ Если возникли проблемы, обратитесь к администратору: @Aureporte"
+        )
+        
+        return True
+    except Exception as e:
+        logging.error(f"Ошибка при отправке туториалов: {e}")
+        return False
+
 @dp.message(Command("start"))
 async def start_command(message: types.Message):
     # Отправляем фото с приветствием
@@ -273,42 +331,22 @@ async def admin_send_file(callback: types.CallbackQuery, state: FSMContext):
 @dp.callback_query(lambda c: c.data == "admin_send_tutorial" and c.from_user.id == ADMIN_ID)
 async def admin_send_tutorial(callback: types.CallbackQuery):
     user_id = temp_data.get("user_chat_id")
+    app_name = temp_data.get("app_name", "приложения")
+    
     if not user_id:
         await callback.message.answer("❌ Нет активного запроса от пользователя!")
         return
     
-    try:
-        await callback.message.answer("⏳ Отправляю туториалы пользователю...")
-        
-        await bot.send_message(
-            chat_id=user_id,
-            text="📚 Вот туториалы по установке приложения:"
-        )
-        
-        # Пересылаем последние сообщения из канала
-        async for message in bot.get_chat_history(CHANNEL_ID, limit=3):
-            if message.photo:
-                await bot.send_photo(
-                    chat_id=user_id,
-                    photo=message.photo[-1].file_id,
-                    caption=message.caption or "📸 Туториал"
-                )
-            elif message.video:
-                await bot.send_video(
-                    chat_id=user_id,
-                    video=message.video.file_id,
-                    caption=message.caption or "🎥 Видео-туториал"
-                )
-            elif message.text:
-                await bot.send_message(
-                    chat_id=user_id,
-                    text=message.text
-                )
-        
+    await callback.message.answer("⏳ Отправляю туториалы пользователю...")
+    
+    success = await send_tutorials_to_user(user_id, app_name)
+    
+    if success:
         await callback.message.answer(f"✅ Туториалы отправлены пользователю (Chat ID: {user_id})")
-        
-    except Exception as e:
-        await callback.message.answer(f"❌ Ошибка при отправке туториалов: {str(e)}")
+    else:
+        await callback.message.answer(f"❌ Ошибка при отправке туториалов")
+    
+    await callback.answer()
 
 # Обработчик выбора приложения пользователем
 @dp.callback_query(lambda c: c.data.startswith("app_"))
@@ -409,36 +447,13 @@ async def handle_account_input(message: types.Message, state: FSMContext):
         
         await message.answer(f"✅ Аккаунт успешно отправлен пользователю (Chat ID: {user_id})")
         
-        # Автоматически отправляем туториалы после выдачи аккаунта
-        try:
-            await bot.send_message(
-                chat_id=user_id,
-                text="📚 Отправляю туториалы по установке..."
-            )
-            
-            # Пересылаем последние сообщения из канала
-            async for msg in bot.get_chat_history(CHANNEL_ID, limit=3):
-                if msg.photo:
-                    await bot.send_photo(
-                        chat_id=user_id,
-                        photo=msg.photo[-1].file_id,
-                        caption=msg.caption or "📸 Туториал"
-                    )
-                elif msg.video:
-                    await bot.send_video(
-                        chat_id=user_id,
-                        video=msg.video.file_id,
-                        caption=msg.caption or "🎥 Видео-туториал"
-                    )
-                elif msg.text:
-                    await bot.send_message(
-                        chat_id=user_id,
-                        text=msg.text
-                    )
-            
-            await message.answer("✅ Туториалы также отправлены пользователю")
-        except Exception as e:
-            await message.answer(f"⚠️ Аккаунт отправлен, но возникла ошибка при отправке туториалов: {str(e)}")
+        # Отправляем туториалы
+        success = await send_tutorials_to_user(user_id, app_name)
+        
+        if success:
+            await message.answer("✅ Туториалы успешно отправлены пользователю")
+        else:
+            await message.answer("⚠️ Аккаунт отправлен, но возникла ошибка при отправке туториалов")
         
         temp_data["user_chat_id"] = None
         
@@ -468,7 +483,7 @@ async def handle_photo(message: types.Message, state: FSMContext):
     try:
         # Отправляем фото пользователю
         photo = message.photo[-1]
-        caption = message.caption or "📸 Фото от администратора"
+        caption = message.caption or "📸 Туториал по установке"
         
         await bot.send_photo(
             chat_id=user_id,
@@ -503,7 +518,7 @@ async def handle_video(message: types.Message, state: FSMContext):
     
     try:
         # Отправляем видео пользователю
-        caption = message.caption or "🎥 Видео от администратора"
+        caption = message.caption or "🎥 Видео-туториал по установке"
         
         await bot.send_video(
             chat_id=user_id,
@@ -538,7 +553,7 @@ async def handle_file(message: types.Message, state: FSMContext):
     
     try:
         # Отправляем файл пользователю
-        caption = message.caption or "📎 Файл от администратора"
+        caption = message.caption or "📎 Файл с инструкцией"
         
         await bot.send_document(
             chat_id=user_id,
