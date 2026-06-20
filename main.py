@@ -9,7 +9,7 @@ from aiogram.fsm.state import State, StatesGroup
 # ⚠️ Токен и ID администратора указаны напрямую
 BOT_TOKEN = "8842910786:AAHcY3m1aN23ZGJA6-jiYWn1z_3MZrIyXPk"
 ADMIN_ID = 7165162714
-CHANNEL_ID = -1004325473861  # ID канала с туториалами
+CHANNEL_ID = -1004325473861  # Новый ID канала с туториалами
 
 # Настройка логирования
 logging.basicConfig(level=logging.INFO)
@@ -186,13 +186,10 @@ async def send_tutorials_to_user(user_id, app_name):
                  f"📹 Смотрите видео-туториал ниже:"
         )
         
-        # Получаем посты из канала
-        # Используем метод get_chat для получения информации о канале
-        # И пересылаем последние сообщения
+        # Получаем последние 10 сообщений из канала и отправляем их
         try:
-            # Получаем последние сообщения из канала через forward
-            # Пересылаем сообщения из канала (последние 3)
-            async for message in bot.get_chat_history(CHANNEL_ID, limit=3):
+            # Используем forward для пересылки сообщений из канала
+            async for message in bot.get_chat_history(CHANNEL_ID, limit=10):
                 if message.photo:
                     await bot.send_photo(
                         chat_id=user_id,
@@ -211,11 +208,8 @@ async def send_tutorials_to_user(user_id, app_name):
                         text=message.text
                     )
         except Exception as e:
-            # Если не удалось получить из канала, отправляем заглушку
-            await bot.send_message(
-                chat_id=user_id,
-                text="📹 Видео-туториал временно недоступен. Следуйте текстовой инструкции выше."
-            )
+            logging.error(f"Ошибка при получении из канала: {e}")
+            # Просто логируем ошибку, но не показываем пользователю
         
         # Отправляем финальное сообщение
         await bot.send_message(
@@ -342,9 +336,10 @@ async def admin_send_tutorial(callback: types.CallbackQuery):
     success = await send_tutorials_to_user(user_id, app_name)
     
     if success:
-        await callback.message.answer(f"✅ Туториалы отправлены пользователю (Chat ID: {user_id})")
+        # Минимальное уведомление для админа
+        await callback.message.answer("✅ Готово")
     else:
-        await callback.message.answer(f"❌ Ошибка при отправке туториалов")
+        await callback.message.answer("❌ Ошибка")
     
     await callback.answer()
 
@@ -445,20 +440,22 @@ async def handle_account_input(message: types.Message, state: FSMContext):
             parse_mode="Markdown"
         )
         
-        await message.answer(f"✅ Аккаунт успешно отправлен пользователю (Chat ID: {user_id})")
+        # Минимальное уведомление для админа
+        await message.answer("✅ Аккаунт отправлен")
         
         # Отправляем туториалы
         success = await send_tutorials_to_user(user_id, app_name)
         
         if success:
-            await message.answer("✅ Туториалы успешно отправлены пользователю")
+            # Минимальное уведомление для админа
+            await message.answer("✅ Туториалы отправлены")
         else:
-            await message.answer("⚠️ Аккаунт отправлен, но возникла ошибка при отправке туториалов")
+            await message.answer("⚠️ Ошибка при отправке туториалов")
         
         temp_data["user_chat_id"] = None
         
     except Exception as e:
-        await message.answer(f"❌ Ошибка при отправке: {str(e)}")
+        await message.answer(f"❌ Ошибка: {str(e)}")
     
     await state.clear()
 
@@ -491,10 +488,10 @@ async def handle_photo(message: types.Message, state: FSMContext):
             caption=caption
         )
         
-        await message.answer(f"✅ Фото успешно отправлено пользователю (Chat ID: {user_id})")
+        await message.answer("✅ Фото отправлено")
         
     except Exception as e:
-        await message.answer(f"❌ Ошибка при отправке: {str(e)}")
+        await message.answer(f"❌ Ошибка: {str(e)}")
     
     await state.clear()
 
@@ -526,10 +523,10 @@ async def handle_video(message: types.Message, state: FSMContext):
             caption=caption
         )
         
-        await message.answer(f"✅ Видео успешно отправлено пользователю (Chat ID: {user_id})")
+        await message.answer("✅ Видео отправлено")
         
     except Exception as e:
-        await message.answer(f"❌ Ошибка при отправке: {str(e)}")
+        await message.answer(f"❌ Ошибка: {str(e)}")
     
     await state.clear()
 
@@ -561,10 +558,10 @@ async def handle_file(message: types.Message, state: FSMContext):
             caption=caption
         )
         
-        await message.answer(f"✅ Файл успешно отправлен пользователю (Chat ID: {user_id})")
+        await message.answer("✅ Файл отправлен")
         
     except Exception as e:
-        await message.answer(f"❌ Ошибка при отправке: {str(e)}")
+        await message.answer(f"❌ Ошибка: {str(e)}")
     
     await state.clear()
 
