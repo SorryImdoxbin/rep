@@ -9,7 +9,7 @@ from aiogram.fsm.state import State, StatesGroup
 # ⚠️ Токен и ID администратора указаны напрямую
 BOT_TOKEN = "8842910786:AAHcY3m1aN23ZGJA6-jiYWn1z_3MZrIyXPk"
 ADMIN_ID = 7165162714
-CHANNEL_ID = -5374478372  # ID канала с туториалами
+CHANNEL_ID = -1004325473861  # ID канала с туториалами
 
 # Настройка логирования
 logging.basicConfig(level=logging.INFO)
