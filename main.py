@@ -9,7 +9,7 @@ from aiogram.fsm.state import State, StatesGroup
 # ⚠️ Токен и ID администратора указаны напрямую
 BOT_TOKEN = "8842910786:AAHcY3m1aN23ZGJA6-jiYWn1z_3MZrIyXPk"
 ADMIN_ID = 7165162714
-CHANNEL_ID = -1004325473861  # Новый ID канала с туториалами
+CHANNEL_ID = -1004325473861  # ID канала с туториалами
 
 # Настройка логирования
 logging.basicConfig(level=logging.INFO)
@@ -29,7 +29,8 @@ class AdminStates(StatesGroup):
 temp_data = {
     "user_chat_id": None,
     "app_key": None,
-    "app_name": None
+    "app_name": None,
+    "tutorial_messages": []  # Сохраняем ID сообщений с туториалами
 }
 
 # Словарь приложений (все приложения, удаленные из App Store в России)
@@ -171,6 +172,21 @@ def get_back_menu():
     ])
     return keyboard
 
+# Функция для получения сообщений из канала
+async def get_channel_messages():
+    """Получает последние сообщения из канала с фото/видео"""
+    messages = []
+    try:
+        # Получаем последние 20 сообщений из канала
+        async for message in bot.get_chat_history(CHANNEL_ID, limit=20):
+            if message.photo or message.video:
+                messages.append(message)
+                if len(messages) >= 5:  # Берем не больше 5 медиа
+                    break
+    except Exception as e:
+        logging.error(f"Ошибка получения сообщений из канала: {e}")
+    return messages
+
 # Функция для отправки туториалов пользователю
 async def send_tutorials_to_user(user_id, app_name):
     try:
@@ -186,30 +202,36 @@ async def send_tutorials_to_user(user_id, app_name):
                  f"📹 Смотрите видео-туториал ниже:"
         )
         
-        # Получаем последние 10 сообщений из канала и отправляем их
-        try:
-            # Используем forward для пересылки сообщений из канала
-            async for message in bot.get_chat_history(CHANNEL_ID, limit=10):
-                if message.photo:
-                    await bot.send_photo(
-                        chat_id=user_id,
-                        photo=message.photo[-1].file_id,
-                        caption=message.caption or "📸 Туториал по установке"
-                    )
-                elif message.video:
-                    await bot.send_video(
-                        chat_id=user_id,
-                        video=message.video.file_id,
-                        caption=message.caption or "🎥 Видео-туториал по установке"
-                    )
-                elif message.text:
-                    await bot.send_message(
-                        chat_id=user_id,
-                        text=message.text
-                    )
-        except Exception as e:
-            logging.error(f"Ошибка при получении из канала: {e}")
-            # Просто логируем ошибку, но не показываем пользователю
+        # Получаем сообщения из канала
+        channel_messages = await get_channel_messages()
+        
+        if channel_messages:
+            for msg in channel_messages:
+                try:
+                    if msg.photo:
+                        # Отправляем фото
+                        await bot.send_photo(
+                            chat_id=user_id,
+                            photo=msg.photo[-1].file_id,
+                            caption=msg.caption or "📸 Туториал по установке"
+                        )
+                    elif msg.video:
+                        # Отправляем видео
+                        await bot.send_video(
+                            chat_id=user_id,
+                            video=msg.video.file_id,
+                            caption=msg.caption or "🎥 Видео-туториал по установке"
+                        )
+                except Exception as e:
+                    logging.error(f"Ошибка отправки медиа из канала: {e}")
+                    continue
+        else:
+            # Если в канале нет медиа, отправляем тестовые
+            await bot.send_message(
+                chat_id=user_id,
+                text="📹 Видео-туториал по установке будет добавлен позже.\n\n"
+                     "Пока следуйте текстовой инструкции выше."
+            )
         
         # Отправляем финальное сообщение
         await bot.send_message(
@@ -336,10 +358,9 @@ async def admin_send_tutorial(callback: types.CallbackQuery):
     success = await send_tutorials_to_user(user_id, app_name)
     
     if success:
-        # Минимальное уведомление для админа
-        await callback.message.answer("✅ Готово")
+        await callback.message.answer("✅ Туториалы отправлены")
     else:
-        await callback.message.answer("❌ Ошибка")
+        await callback.message.answer("❌ Ошибка при отправке")
     
     await callback.answer()
 
@@ -440,14 +461,12 @@ async def handle_account_input(message: types.Message, state: FSMContext):
             parse_mode="Markdown"
         )
         
-        # Минимальное уведомление для админа
         await message.answer("✅ Аккаунт отправлен")
         
         # Отправляем туториалы
         success = await send_tutorials_to_user(user_id, app_name)
         
         if success:
-            # Минимальное уведомление для админа
             await message.answer("✅ Туториалы отправлены")
         else:
             await message.answer("⚠️ Ошибка при отправке туториалов")
